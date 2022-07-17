@@ -516,3 +516,18 @@ impl<T: Config<I>, I: 'static> OnUnbalanced<NegativeImbalanceOf<T, I>> for Palle
 		Self::deposit_event(Event::Deposit { value: numeric_amount });
 	}
 }
+
+/// Use an adapter to implement OnUnbalanced trait for PositiveImbalance
+/// to handle Validator Nominator reward positive imbalance
+pub struct BurnImbalanceAdapter<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for BurnImbalanceAdapter<T> {
+    fn on_nonzero_unbalanced(amount: PositiveImbalanceOf<T>) {
+		let numeric_amount = amount.peek();
+
+		// Must resolve into existing but better to be safe.
+		let _ = T::Currency::settle(&<Pallet<T>>::account_id(), amount, WithdrawReasons::TRANSFER, KeepAlive);
+
+		<Pallet<T>>::deposit_event(Event::Deposit { value: numeric_amount });
+
+    }
+}
