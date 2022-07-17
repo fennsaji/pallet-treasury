@@ -222,22 +222,26 @@ pub mod pallet {
 		StorageValue<_, BoundedVec<ProposalIndex, T::MaxApprovals>, ValueQuery>;
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig;
+	pub struct GenesisConfig<T: Config<I>, I: 'static = ()> {
+		pub treasury_balance: BalanceOf<T, I>
+	}
 
 	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
+	impl<T: Config<I>, I: 'static> Default for GenesisConfig<T, I> {
 		fn default() -> Self {
-			Self
+			GenesisConfig { 
+				treasury_balance: T::Currency::minimum_balance()
+			 }
 		}
 	}
 
 	#[cfg(feature = "std")]
-	impl GenesisConfig {
+	impl<T: Config<I>, I: 'static> GenesisConfig<T, I> {
 		/// Direct implementation of `GenesisBuild::assimilate_storage`.
 		#[deprecated(
 			note = "use `<GensisConfig<T, I> as GenesisBuild<T, I>>::assimilate_storage` instead"
 		)]
-		pub fn assimilate_storage<T: Config<I>, I: 'static>(
+		pub fn assimilate_storage(
 			&self,
 			storage: &mut sp_runtime::Storage,
 		) -> Result<(), String> {
@@ -246,13 +250,13 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
+	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig<T, I> {
 		fn build(&self) {
 			// Create Treasury account
 			let account_id = <Pallet<T, I>>::account_id();
-			let min = T::Currency::minimum_balance();
-			if T::Currency::free_balance(&account_id) < min {
-				let _ = T::Currency::make_free_balance_be(&account_id, min);
+			let treasury_balance = self.treasury_balance;
+			if T::Currency::free_balance(&account_id) < treasury_balance {
+				let _ = T::Currency::deposit_creating(&account_id, treasury_balance);
 			}
 		}
 	}
@@ -527,7 +531,7 @@ impl<T: Config> OnUnbalanced<PositiveImbalanceOf<T>> for BurnImbalanceAdapter<T>
 		// Must resolve into existing but better to be safe.
 		let _ = T::Currency::settle(&<Pallet<T>>::account_id(), amount, WithdrawReasons::TRANSFER, KeepAlive);
 
-		<Pallet<T>>::deposit_event(Event::Deposit { value: numeric_amount });
+		<Pallet<T>>::deposit_event(Event::Burnt { burnt_funds: numeric_amount });
 
     }
 }
